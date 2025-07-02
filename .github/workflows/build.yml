@@ -26,13 +26,12 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
         
     - name: Restore .NET dependencies
       run: dotnet restore
       
     - name: Install Node.js dependencies
-      run: npm ci
+      run: npm install
       
     - name: Build .NET application
       run: dotnet build --configuration Release --no-restore
@@ -84,7 +83,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
         
     - name: Install .NET EF Tools
       run: dotnet tool install --global dotnet-ef --version 9.0.6
@@ -93,7 +91,7 @@ jobs:
       run: dotnet restore
       
     - name: Install Node.js dependencies
-      run: npm ci
+      run: npm install
       
     - name: Build Blazor application
       run: dotnet publish -c Release -o ./dist --self-contained true -r ${{ matrix.runtime }}
