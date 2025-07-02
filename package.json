@@ -1,0 +1,70 @@
+{
+  "name": "book-inventory-electron",
+  "version": "1.0.0",
+  "description": "Book Inventory Desktop Application",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "electron-dev": "concurrently \"dotnet run\" \"wait-on http://localhost:5000 && electron .\"",
+    "build": "./build-electron.sh",
+    "dist": "./build-electron.sh"
+  },
+  "build": {
+    "appId": "com.bookinventory.app",
+    "productName": "Book Inventory",
+    "electronVersion": "30.0.0",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/main.js",
+      "electron/preload.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": ["**/*", "!**/*.pdb"]
+      }
+    ],
+    "asarUnpack": [
+      "dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.plist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,394 @@
+@page "/books"
+@using BookInventory.Models
+@using BookInventory.Services
+@inject BookService BookService
+@inject BookDataService BookDataService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+<PageTitle>Book Inventory</PageTitle>
+
+<div class="container">
+    <div class="header">
+        <h1>📚 My Book Inventory</h1>
+        <p>Keep track of all your books at home</p>
+    </div>
+
+    <div class="form-section">
+        <h2>Add New Book</h2>
+        <EditForm Model="@newBook" OnValidSubmit="@AddBook">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            
+            <div class="scan-section">
+                <button type="button" class="btn btn-scan" @onclick="OpenScanModal">
+                    📷 Scan a Book
+                </button>
+                <span class="scan-help">Scan ISBN barcode to auto-fill book details</span>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="isbn">ISBN</label>
+                    <InputText id="isbn" @bind-Value="newBook.ISBN" class="form-control" placeholder="Enter ISBN manually or scan barcode" />
+                </div>
+                <div class="form-group">
+                    <label for="title">Title *</label>
+                    <InputText id="title" @bind-Value="newBook.Title" class="form-control" />
+                    <ValidationMessage For="@(() => newBook.Title)" />
+                </div>
+                <div class="form-group">
+                    <label for="author">Author *</label>
+                    <InputText id="author" @bind-Value="newBook.Author" class="form-control" />
+                    <ValidationMessage For="@(() => newBook.Author)" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location">Location in Home *</label>
+                    <InputText id="location" @bind-Value="newBook.Location" class="form-control" placeholder="e.g., Living room shelf, Bedroom nightstand" />
+                    <ValidationMessage For="@(() => newBook.Location)" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group notes">
+                    <label for="notes">Notes</label>
+                    <InputTextArea id="notes" @bind-Value="newBook.Notes" class="form-control" placeholder="Optional notes about the book..." />
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Book</button>
+        </EditForm>
+    </div>
+
+    <div class="books-section">
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number">@totalBooks</div>
+                <div class="stat-label">Total Books</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">@uniqueLocations</div>
+                <div class="stat-label">Locations</div>
+            </div>
+        </div>
+
+        <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeyup="SearchBooks" 
+               class="search-bar" placeholder="Search books by title, author, location, or notes..." />
+        
+        <div class="books-grid">
+            @if (books != null && books.Any())
+            {
+                @foreach (var book in books)
+                {
+                    <div class="book-card">
+                        <div class="book-title">@book.Title</div>
+                        <div class="book-author">by @book.Author</div>
+                        <div class="book-location">📍 @book.Location</div>
+                        @if (!string.IsNullOrEmpty(book.ISBN))
+                        {
+                            <div class="book-isbn">ISBN: @book.ISBN</div>
+                        }
+                        
+                        @if (editingBookId == book.Id)
+                        {
+                            <div class="edit-notes-section">
+                                <label>Notes:</label>
+                                <textarea @bind="editingNotes" class="form-control edit-textarea" placeholder="Enter notes about this book..."></textarea>
+                                <div class="edit-actions">
+                                    <button class="btn btn-primary btn-sm" @onclick="() => SaveNotes(book.Id)">Save</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(book.Notes))
+                            {
+                                <div class="book-notes">@book.Notes</div>
+                            }
+                            else
+                            {
+                                <div class="book-notes-empty">No notes</div>
+                            }
+                        }
+                        
+                        <div class="book-actions">
+                            @if (editingBookId != book.Id)
+                            {
+                                <button class="btn btn-secondary btn-sm" @onclick="() => StartEdit(book.Id, book.Notes)">Edit Notes</button>
+                            }
+                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteBook(book.Id)">Delete</button>
+                        </div>
+                    </div>
+                }
+            }
+            else if (books != null)
+            {
+                <p style="text-align: center; color: #7f8c8d; grid-column: 1 / -1;">No books found</p>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Scanner Modal -->
+@if (showScanModal)
+{
+    <div class="modal-overlay" @onclick="CloseScanModal">
+        <div class="scanner-modal" @onclick:stopPropagation="true">
+            <div class="scanner-header">
+                <h3>Scan Book Barcode</h3>
+                <button class="close-btn" @onclick="CloseScanModal">&times;</button>
+            </div>
+            
+            <div class="scanner-content">
+                @if (scannerError != null)
+                {
+                    <div class="scanner-error">
+                        <p>@scannerError</p>
+                        <div class="manual-input">
+                            <label>Enter ISBN manually:</label>
+                            <input type="text" @bind="manualISBN" @onkeypress="HandleManualISBNKeyPress" placeholder="Enter ISBN..." />
+                            <button class="btn btn-primary" @onclick="ProcessManualISBN">Fetch Book Data</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="scanner-video-container">
+                        <video id="scanner-video" autoplay muted playsinline></video>
+                        <div class="scanner-overlay">
+                            <div class="scanner-frame"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="scanner-instructions">
+                        <p>Position the barcode within the frame</p>
+                        <div class="manual-input">
+                            <label>Or enter ISBN manually:</label>
+                            <input type="text" @bind="manualISBN" @onkeypress="HandleManualISBNKeyPress" placeholder="Enter ISBN..." />
+                            <button class="btn btn-primary" @onclick="ProcessManualISBN">Fetch Book Data</button>
+                        </div>
+                    </div>
+                }
+
+                @if (isLoadingBookData)
+                {
+                    <div class="loading-overlay">
+                        <div class="loading-spinner"></div>
+                        <p>Fetching book information...</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Book newBook = new();
+    private List<Book> books = new();
+    private string searchTerm = string.Empty;
+    private int totalBooks = 0;
+    private int uniqueLocations = 0;
+    private int? editingBookId = null;
+    private string editingNotes = string.Empty;
+    private bool showScanModal = false;
+    private bool isLoadingBookData = false;
+    private string? scannerError = null;
+    private string manualISBN = string.Empty;
+    private DotNetObjectReference<Books>? dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+        await LoadBooks();
+        await UpdateStats();
+    }
+
+    private async Task LoadBooks()
+    {
+        books = await BookService.GetAllBooksAsync();
+    }
+
+    private async Task UpdateStats()
+    {
+        totalBooks = await BookService.GetTotalBooksCountAsync();
+        uniqueLocations = await BookService.GetUniqueLocationsCountAsync();
+    }
+
+    private async Task AddBook()
+    {
+        await BookService.AddBookAsync(newBook);
+        newBook = new Book();
+        await LoadBooks();
+        await UpdateStats();
+        StateHasChanged();
+    }
+
+    private async Task DeleteBook(int id)
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this book?");
+        if (confirmed)
+        {
+            await BookService.DeleteBookAsync(id);
+            await LoadBooks();
+            await UpdateStats();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SearchBooks()
+    {
+        books = await BookService.SearchBooksAsync(searchTerm);
+        StateHasChanged();
+    }
+
+    private void StartEdit(int bookId, string? currentNotes)
+    {
+        editingBookId = bookId;
+        editingNotes = currentNotes ?? string.Empty;
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        editingBookId = null;
+        editingNotes = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task SaveNotes(int bookId)
+    {
+        var book = books.FirstOrDefault(b => b.Id == bookId);
+        if (book != null)
+        {
+            book.Notes = string.IsNullOrWhiteSpace(editingNotes) ? null : editingNotes.Trim();
+            await BookService.UpdateBookAsync(book);
+            await LoadBooks();
+            editingBookId = null;
+            editingNotes = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    // Scanner Methods
+    private async Task OpenScanModal()
+    {
+        showScanModal = true;
+        scannerError = null;
+        manualISBN = string.Empty;
+        StateHasChanged();
+        
+        await Task.Delay(100); // Allow modal to render
+        
+        try
+        {
+            var cameraStarted = await JSRuntime.InvokeAsync<bool>("blazorBarcodeScanner.startCamera", "scanner-video");
+            if (cameraStarted && dotNetRef != null)
+            {
+                await JSRuntime.InvokeVoidAsync("blazorBarcodeScanner.startScanning", dotNetRef, nameof(OnBarcodeScanned), nameof(OnScannerError));
+            }
+            else
+            {
+                scannerError = "Camera not available. Please enter ISBN manually.";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            scannerError = "Scanner initialization failed. Please enter ISBN manually.";
+            StateHasChanged();
+        }
+    }
+
+    private async Task CloseScanModal()
+    {
+        showScanModal = false;
+        await JSRuntime.InvokeVoidAsync("blazorBarcodeScanner.stopCamera");
+        await JSRuntime.InvokeVoidAsync("blazorBarcodeScanner.stopScanning");
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnBarcodeScanned(string isbn)
+    {
+        await ProcessISBN(isbn);
+    }
+
+    [JSInvokable]
+    public void OnScannerError(string error)
+    {
+        scannerError = error;
+        StateHasChanged();
+    }
+
+    private async Task ProcessManualISBN()
+    {
+        if (!string.IsNullOrWhiteSpace(manualISBN))
+        {
+            await ProcessISBN(manualISBN.Trim());
+        }
+    }
+
+    private async Task HandleManualISBNKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ProcessManualISBN();
+        }
+    }
+
+    private async Task ProcessISBN(string isbn)
+    {
+        if (string.IsNullOrWhiteSpace(isbn))
+            return;
+
+        isLoadingBookData = true;
+        StateHasChanged();
+
+        try
+        {
+            var bookData = await BookDataService.FetchBookDataByISBNAsync(isbn);
+            if (bookData != null)
+            {
+                // Pre-fill the form with fetched data
+                newBook.ISBN = bookData.ISBN;
+                newBook.Title = bookData.Title;
+                newBook.Author = bookData.Author;
+                // Keep existing location and notes as they are user-specific
+                
+                await CloseScanModal();
+                StateHasChanged();
+            }
+            else
+            {
+                // Still set the ISBN even if we couldn't fetch data
+                newBook.ISBN = isbn;
+                await CloseScanModal();
+                StateHasChanged();
+                
+                await JSRuntime.InvokeVoidAsync("alert", "Book information not found for this ISBN. Please enter the details manually.");
+            }
+        }
+        catch (Exception ex)
+        {
+            scannerError = "Failed to fetch book information. Please try again or enter details manually.";
+            StateHasChanged();
+        }
+        finally
+        {
+            isLoadingBookData = false;
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (showScanModal)
+        {
+            await JSRuntime.InvokeVoidAsync("blazorBarcodeScanner.stopCamera");
+            await JSRuntime.InvokeVoidAsync("blazorBarcodeScanner.stopScanning");
+        }
+        dotNetRef?.Dispose();
+    }
+}
