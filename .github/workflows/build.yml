@@ -108,7 +108,7 @@ jobs:
         
     - name: Build Electron application
       run: |
-        electron-builder --config .github/workflows/electron-builder.yml --publish never
+        npx electron-builder --config .github/workflows/electron-builder.yml --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         CSC_IDENTITY_AUTO_DISCOVERY: false
