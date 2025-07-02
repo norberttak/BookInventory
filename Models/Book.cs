@@ -21,6 +21,9 @@ namespace BookInventory.Models
         [StringLength(200)]
         public string Location { get; set; } = string.Empty;
 
+        [StringLength(64)]
+        public string? Topic { get; set; }
+
         [StringLength(1000)]
         public string? Notes { get; set; }
 
