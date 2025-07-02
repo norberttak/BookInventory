@@ -60,6 +60,7 @@ namespace BookInventory.Services
                 .Where(b => b.Title.ToLower().Contains(lowerSearchTerm) ||
                            b.Author.ToLower().Contains(lowerSearchTerm) ||
                            b.Location.ToLower().Contains(lowerSearchTerm) ||
+                           (b.Topic != null && b.Topic.ToLower().Contains(lowerSearchTerm)) ||
                            (b.Notes != null && b.Notes.ToLower().Contains(lowerSearchTerm)))
                 .OrderByDescending(b => b.DateAdded)
                 .ToListAsync();
