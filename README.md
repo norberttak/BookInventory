@@ -109,6 +109,36 @@ BookInventory/
 
 The SQLite database (`books.db`) is created automatically and stores all your book data locally. No internet connection required after the initial book data fetch.
 
+## CI/CD Pipeline
+
+This project includes a comprehensive GitHub Actions CI/CD pipeline that automatically:
+
+### 🔄 **Automated Builds**
+- **Multi-platform support**: Windows (.exe), Linux (AppImage), macOS (DMG)
+- **Triggered on**: Push to main/master/develop, pull requests, and git tags
+- **Cross-platform testing**: Validates builds on Ubuntu, Windows, and macOS runners
+
+### 📦 **Build Artifacts**
+- **Windows**: NSIS installer (.exe)
+- **Linux**: AppImage portable application
+- **macOS**: DMG with support for both x64 and ARM64 architectures
+
+### 🚀 **Automatic Releases**
+- **Git tags**: Creates GitHub releases automatically when you push a version tag (e.g., `v1.0.0`)
+- **Release assets**: All platform binaries are attached to the release
+- **Release notes**: Auto-generated from commit messages
+
+### 🧪 **Quality Assurance**
+- **Automated testing**: Runs .NET tests before building
+- **Build validation**: Ensures all platforms build successfully
+- **Configuration validation**: Validates workflow YAML files
+
+To trigger a release, simply tag your commit:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 ## Troubleshooting
 
 ### Common Issues
