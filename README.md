@@ -10,8 +10,9 @@ A desktop application for managing your personal book collection with barcode sc
 - 📚 **Book Management**: Add, edit, and organize your books
 - 📱 **Barcode Scanner**: Scan ISBN barcodes to automatically fetch book information
 - 🏠 **Location Tracking**: Track where books are located in your home
+- 🏷️ **Topic Classification**: Categorize books by topic with type-ahead suggestions
 - 📝 **Notes**: Add personal notes to each book
-- 🔍 **Search & Filter**: Find books quickly
+- 🔍 **Search & Filter**: Find books quickly by title, author, location, topic, or notes
 - 💾 **SQLite Database**: All data stored locally
 
 ## Tech Stack

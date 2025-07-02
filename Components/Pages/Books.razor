@@ -52,6 +52,21 @@
                 </div>
             </div>
             <div class="form-row">
+                <div class="form-group">
+                    <label for="topic">Topic</label>
+                    <input id="topic" @bind="newBook.Topic" @bind:event="oninput" @onkeyup="OnTopicInput" 
+                           class="form-control" placeholder="e.g., Fiction, Science, History..." 
+                           maxlength="64" list="topic-suggestions" />
+                    <datalist id="topic-suggestions">
+                        @foreach (var suggestion in topicSuggestions)
+                        {
+                            <option value="@suggestion" />
+                        }
+                    </datalist>
+                    <small class="form-text text-muted">@((newBook.Topic?.Length ?? 0))/64 characters</small>
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group notes">
                     <label for="notes">Notes</label>
                     <InputTextArea id="notes" @bind-Value="newBook.Notes" class="form-control" placeholder="Optional notes about the book..." />
@@ -74,7 +89,7 @@
         </div>
 
         <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeyup="SearchBooks" 
-               class="search-bar" placeholder="Search books by title, author, location, or notes..." />
+               class="search-bar" placeholder="Search books by title, author, location, topic, or notes..." />
         
         <div class="books-grid">
             @if (books != null && books.Any())
@@ -85,6 +100,10 @@
                         <div class="book-title">@book.Title</div>
                         <div class="book-author">by @book.Author</div>
                         <div class="book-location">📍 @book.Location</div>
+                        @if (!string.IsNullOrEmpty(book.Topic))
+                        {
+                            <div class="book-topic">🏷️ @book.Topic</div>
+                        }
                         @if (!string.IsNullOrEmpty(book.ISBN))
                         {
                             <div class="book-isbn">ISBN: @book.ISBN</div>
@@ -197,6 +216,13 @@
     private string? scannerError = null;
     private string manualISBN = string.Empty;
     private DotNetObjectReference<Books>? dotNetRef;
+    private List<string> topicSuggestions = new()
+    {
+        "Fiction", "Non-Fiction", "Science Fiction", "Fantasy", "Mystery", "Romance", "Thriller",
+        "Biography", "History", "Science", "Technology", "Philosophy", "Psychology", "Self-Help",
+        "Business", "Travel", "Cooking", "Art", "Music", "Poetry", "Drama", "Adventure",
+        "Horror", "Comedy", "Educational", "Reference", "Children's", "Young Adult"
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -241,6 +267,11 @@
     {
         books = await BookService.SearchBooksAsync(searchTerm);
         StateHasChanged();
+    }
+
+    private void OnTopicInput(KeyboardEventArgs e)
+    {
+        StateHasChanged(); // Refresh the character count
     }
 
     private void StartEdit(int bookId, string? currentNotes)
