@@ -1,0 +1,198 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Application
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Restore .NET dependencies
+      run: dotnet restore
+      
+    - name: Install Node.js dependencies
+      run: npm ci
+      
+    - name: Build .NET application
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Run .NET tests
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      
+    - name: Create test database
+      run: |
+        export PATH="$PATH:$HOME/.dotnet/tools"
+        dotnet tool install --global dotnet-ef --version 9.0.6 || true
+        dotnet ef database update
+
+  build:
+    name: Build Electron App
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            runtime: linux-x64
+            artifact: AppImage
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            runtime: win-x64
+            artifact: exe
+          - os: macos-latest
+            platform: darwin
+            arch: x64
+            runtime: osx-x64
+            artifact: dmg
+            
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install .NET EF Tools
+      run: dotnet tool install --global dotnet-ef --version 9.0.6
+      
+    - name: Restore .NET dependencies
+      run: dotnet restore
+      
+    - name: Install Node.js dependencies
+      run: npm ci
+      
+    - name: Build Blazor application
+      run: dotnet publish -c Release -o ./dist --self-contained true -r ${{ matrix.runtime }}
+      
+    - name: Verify build output
+      shell: bash
+      run: |
+        if [ ! -d "./dist/wwwroot" ]; then
+          echo "ERROR: wwwroot directory not found!"
+          ls -la ./dist/
+          exit 1
+        fi
+        echo "✓ Blazor build successful"
+        
+    - name: Build Electron application
+      run: |
+        electron-builder --config .github/workflows/electron-builder.yml --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CSC_IDENTITY_AUTO_DISCOVERY: false
+        
+    - name: List build artifacts
+      shell: bash
+      run: |
+        echo "Build artifacts:"
+        find release -type f -name "*.*" 2>/dev/null || echo "No release directory found"
+        ls -la release/ 2>/dev/null || echo "Release directory is empty"
+        
+    - name: Upload artifacts (Linux AppImage)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-appimage
+        path: release/*.AppImage
+        if-no-files-found: warn
+        
+    - name: Upload artifacts (Windows Installer)
+      if: matrix.os == 'windows-latest'  
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-installer
+        path: release/*.exe
+        if-no-files-found: warn
+        
+    - name: Upload artifacts (macOS DMG)
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-dmg
+        path: release/*.dmg
+        if-no-files-found: warn
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Display structure of downloaded files
+      run: ls -la artifacts/
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/**/*
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify Build Status
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Success Notification
+      if: needs.test.result == 'success' && needs.build.result == 'success'
+      run: |
+        echo "✅ Build completed successfully for all platforms!"
+        echo "- Tests: ${{ needs.test.result }}"
+        echo "- Build: ${{ needs.build.result }}"
+        
+    - name: Build Failure Notification
+      if: needs.test.result == 'failure' || needs.build.result == 'failure'
+      run: |
+        echo "❌ Build failed!"
+        echo "- Tests: ${{ needs.test.result }}"
+        echo "- Build: ${{ needs.build.result }}"
+        exit 1

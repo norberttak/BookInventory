@@ -6,8 +6,9 @@
   "scripts": {
     "electron": "electron .",
     "electron-dev": "concurrently \"dotnet run\" \"wait-on http://localhost:5000 && electron .\"",
-    "build": "./build-electron.sh",
-    "dist": "./build-electron.sh"
+    "build": "electron-builder",
+    "build-local": "./build-electron.sh",
+    "dist": "electron-builder"
   },
   "build": {
     "appId": "com.bookinventory.app",

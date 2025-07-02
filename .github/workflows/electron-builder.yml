@@ -1,0 +1,45 @@
+appId: com.bookinventory.app
+productName: Book Inventory
+copyright: Copyright © 2024
+electronVersion: 30.0.0
+
+directories:
+  output: release
+
+files:
+  - electron/main.js
+  - electron/preload.js
+  - package.json
+
+extraResources:
+  - from: dist
+    to: dist
+    filter: ["**/*", "!**/*.pdb"]
+
+asarUnpack:
+  - dist/**/*
+
+mac:
+  category: public.app-category.productivity
+  target: 
+    - target: dmg
+      arch: [x64, arm64]
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  entitlements: electron/entitlements.mac.plist
+  entitlementsInherit: electron/entitlements.mac.plist
+
+win:
+  target: nsis
+
+linux:
+  target: AppImage
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+publish:
+  provider: github
+  private: false
